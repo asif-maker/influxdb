@@ -6,6 +6,8 @@ import (
 
 	"github.com/influxdata/influxdb/chronograf"
 	"github.com/influxdata/influxdb/chronograf/bolt"
+	"github.com/influxdata/influxdb/pkger"
+	"gopkg.in/yaml.v2"
 )
 
 func main() {
@@ -25,11 +27,33 @@ func main() {
 		panic(err)
 	}
 
+	pkg := &pkger.Pkg{
+		APIVersion: pkger.APIVersion,
+		Kind:       pkger.KindPackage,
+		Metadata: pkger.Metadata{
+			Description: "Dashboards from 1.x chronograf that are migrated to the new format",
+			Name:        "Migrated Dashboards",
+			Version:     "1",
+		},
+		Spec: struct {
+			Resources []pkger.Resource `yaml:"resources" json:"resources"`
+		}{
+			Resources: make([]pkger.Resource, 0, 0),
+		},
+	}
 	for _, d := range ds {
 		r, err := Convert1To2Dashboard(&d)
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println(r)
+		pkg.Spec.Resources = append(pkg.Spec.Resources, r)
+		break
 	}
+
+	b, err := yaml.Marshal(pkg)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(string(b))
 }

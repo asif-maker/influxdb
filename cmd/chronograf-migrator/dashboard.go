@@ -11,10 +11,9 @@ func Convert1To2Dashboard(d1 *chronograf.Dashboard) (pkger.Resource, error) {
 		Name: d1.Name,
 	}
 
-	cvs := []interface{}{}
-
 	for _, cell := range d1.Cells {
-		c := influxdb.Cell{
+		c := &influxdb.Cell{
+			ID: 1,
 			CellProperty: influxdb.CellProperty{
 				X: cell.X,
 				Y: cell.Y,
@@ -79,27 +78,31 @@ func Convert1To2Dashboard(d1 *chronograf.Dashboard) (pkger.Resource, error) {
 				Queries:    convertQueries(cell.Queries),
 				Axes:       convertAxes(cell.Axes),
 				Legend:     convertLegend(cell.Legend),
-				Geom:       "bar",
 				ViewColors: convertColors(cell.CellColors),
 				Note:       cell.Note,
 				Position:   "overlaid",
 			}
 		case "single-stat":
+			v.Properties = influxdb.EmptyViewProperties{}
 		case "gauge":
 		case "table":
+			v.Properties = influxdb.EmptyViewProperties{}
 		case "alerts":
+			v.Properties = influxdb.EmptyViewProperties{}
 		case "news":
+			v.Properties = influxdb.EmptyViewProperties{}
 		case "guide":
+			v.Properties = influxdb.EmptyViewProperties{}
 		case "note":
 		default:
 			v.Properties = influxdb.EmptyViewProperties{}
 		}
 
-		cvs = append(cvs, pkger.ConvertToCellView(c, v))
+		c.View = &v
+		d2.Cells = append(d2.Cells, c)
 	}
 
-	// TODO(desa): pass in cvs
-	return pkger.DashboardToResource(*d2, cvs, d1.Name), nil
+	return pkger.DashboardToResource(*d2, d1.Name), nil
 }
 
 func convertAxes(a map[string]chronograf.Axis) map[string]influxdb.Axis {
@@ -115,6 +118,13 @@ func convertAxes(a map[string]chronograf.Axis) map[string]influxdb.Axis {
 		}
 	}
 
+	if _, exists := m["x"]; !exists {
+		m["x"] = influxdb.Axis{}
+	}
+	if _, exists := m["y"]; !exists {
+		m["y"] = influxdb.Axis{}
+	}
+
 	return m
 }
 
@@ -127,7 +137,13 @@ func convertLegend(l chronograf.Legend) influxdb.Legend {
 
 func convertColors(cs []chronograf.CellColor) []influxdb.ViewColor {
 	vs := []influxdb.ViewColor{}
+
+	hasTextColor := false
 	for _, c := range cs {
+		if c.Type == "text" {
+			hasTextColor = true
+		}
+
 		v := influxdb.ViewColor{
 			ID:   c.ID,
 			Type: c.Type,
@@ -139,18 +155,49 @@ func convertColors(cs []chronograf.CellColor) []influxdb.ViewColor {
 		vs = append(vs, v)
 	}
 
+	if !hasTextColor {
+		vs = append(vs, influxdb.ViewColor{
+			ID:    "base",
+			Type:  "text",
+			Hex:   "#00C9FF",
+			Name:  "laser",
+			Value: 0,
+		})
+	}
+
 	return vs
 }
 
 func convertQueries(qs []chronograf.DashboardQuery) []influxdb.DashboardQuery {
 	ds := []influxdb.DashboardQuery{}
+	query := `from(bucket: "bucket")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r._measurement == "mem")
+  |> filter(fn: (r) => r._field == "used_percent")
+`
 	for _, q := range qs {
 		d := influxdb.DashboardQuery{
 			// TODO(desa): possibly we should try to compile the query to flux that we can show the user.
-			Text:     "//" + q.Command,
+			//Text:     "// " + q.Command,
+			Text:     query,
 			EditMode: "advanced",
 		}
 
+		_ = q
+
+		ds = append(ds, d)
+	}
+
+	if len(ds) == 0 {
+		d := influxdb.DashboardQuery{
+			// TODO(desa): possibly we should try to compile the query to flux that we can show the user.
+			Text:     "// cell had no queries",
+			EditMode: "advanced",
+			BuilderConfig: influxdb.BuilderConfig{
+				// TODO(desa): foo
+				Buckets: []string{"bucket"},
+			},
+		}
 		ds = append(ds, d)
 	}
 
