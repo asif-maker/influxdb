@@ -170,16 +170,10 @@ func convertColors(cs []chronograf.CellColor) []influxdb.ViewColor {
 
 func convertQueries(qs []chronograf.DashboardQuery) []influxdb.DashboardQuery {
 	ds := []influxdb.DashboardQuery{}
-	query := `from(bucket: "bucket")
-  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-  |> filter(fn: (r) => r._measurement == "mem")
-  |> filter(fn: (r) => r._field == "used_percent")
-`
 	for _, q := range qs {
 		d := influxdb.DashboardQuery{
 			// TODO(desa): possibly we should try to compile the query to flux that we can show the user.
-			//Text:     "// " + q.Command,
-			Text:     query,
+			Text:     "// " + q.Command,
 			EditMode: "advanced",
 		}
 
