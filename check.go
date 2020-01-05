@@ -1,12 +1,4 @@
-package influxdb
 
-import (
-	"context"
-	"encoding/json"
-)
-
-// consts for checks config.
-const (
 	CheckDefaultPageSize = 100
 	CheckMaxPageSize     = 500
 )
